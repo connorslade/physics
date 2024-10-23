@@ -12,15 +12,15 @@ fn main() {
     let world = World {
         size: Pos::new(100.0, 100.0),
         particles: vec![
-            (Pos::new(40.0, 50.0), -3.0),
-            (Pos::new(50.0, 50.0), 4.0),
-            (Pos::new(60.0, 50.0), -3.0),
+            (Pos::new(40.0, 50.0), -3),
+            (Pos::new(50.0, 50.0), 4),
+            (Pos::new(60.0, 50.0), -3),
         ],
     };
 
     let config = FieldConfig {
         lines_per_charge: 6,
-        line_width: 0.3,
+        line_width: 1.0,
         steps: 10 * 300,
         step: 1.0,
     };

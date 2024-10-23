@@ -1,9 +1,8 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::time::{self, Instant};
 
-use vello::kurbo::{Affine, Circle};
-use vello::low_level::Render;
+use nalgebra::Vector2;
+use vello::kurbo::{stroke, Affine, Circle, PathEl, Point, Stroke, StrokeOpts};
 use vello::peniko::{Color, Fill};
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 use wgpu::{
@@ -28,7 +27,7 @@ pub struct Application<'a> {
 
 pub struct State<'a> {
     graphics: RenderContext<'a>,
-    last_frame: Instant,
+    window_size: Vector2<f32>,
 }
 
 pub struct RenderContext<'a> {
@@ -69,6 +68,7 @@ impl<'a> ApplicationHandler for Application<'a> {
         .unwrap();
 
         self.state = Some(State {
+            window_size: self.world.size,
             graphics: RenderContext {
                 renderer,
 
@@ -77,7 +77,6 @@ impl<'a> ApplicationHandler for Application<'a> {
                 device,
                 queue,
             },
-            last_frame: Instant::now(),
         });
     }
 
@@ -91,26 +90,56 @@ impl<'a> ApplicationHandler for Application<'a> {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
-            WindowEvent::Resized(_) => {
+            WindowEvent::Resized(size) => {
+                let size = Vector2::new(size.width as f32, size.height as f32);
+
+                for (pos, _) in &mut self.world.particles {
+                    *pos = pos.component_div(&state.window_size).component_mul(&size);
+                }
+
+                state.window_size = size;
                 self.resize_surface();
             }
             WindowEvent::RedrawRequested => {
-                let now = time::Instant::now();
-                let delta = now - state.last_frame;
-                state.last_frame = now;
-                println!("Frame time: {delta:?}");
-
-                let mut scene = Scene::new();
-                scene.fill(
-                    Fill::NonZero,
-                    Affine::IDENTITY,
-                    Color::rgb8(242, 140, 168),
-                    None,
-                    &Circle::new((420.0, 200.0), 120.0),
+                let physical_screen_size = state.graphics.window.inner_size();
+                let screen_size = Vector2::new(
+                    physical_screen_size.width as f32,
+                    physical_screen_size.height as f32,
                 );
 
+                let mut scene = Scene::new();
+
+                self.world.size = screen_size;
+                for (pos, charge) in &self.world.particles {
+                    let lines = self.world.generate_field_lines(&self.config, *pos, *charge);
+                    let mut last = Vector2::new(0.0, 0.0);
+                    let mut path = Vec::new();
+
+                    for (start, end) in lines {
+                        if last != start {
+                            path.push(PathEl::MoveTo(Point::new(start.x as f64, start.y as f64)));
+                        }
+                        path.push(PathEl::LineTo(Point::new(end.x as f64, end.y as f64)));
+
+                        last = end;
+                    }
+
+                    let path = stroke(
+                        path,
+                        &Stroke::new(self.config.line_width as f64),
+                        &StrokeOpts::default(),
+                        1.0,
+                    );
+                    scene.fill(Fill::NonZero, Affine::IDENTITY, Color::WHITE, None, &path);
+                }
+
+                for (pos, charge) in &self.world.particles {
+                    let color = if *charge > 0 { Color::RED } else { Color::BLUE };
+                    let shape = Circle::new((pos.x, pos.y), 20.0);
+                    scene.fill(Fill::NonZero, Affine::IDENTITY, color, None, &shape);
+                }
+
                 let surface_texture = state.graphics.surface.get_current_texture().unwrap();
-                let screen_size = state.graphics.window.inner_size();
                 state
                     .graphics
                     .renderer
@@ -121,8 +150,8 @@ impl<'a> ApplicationHandler for Application<'a> {
                         &surface_texture,
                         &RenderParams {
                             base_color: Color::BLACK,
-                            width: screen_size.width,
-                            height: screen_size.height,
+                            width: physical_screen_size.width,
+                            height: physical_screen_size.height,
                             antialiasing_method: AaConfig::Msaa16,
                         },
                     )

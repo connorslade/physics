@@ -32,7 +32,7 @@ pub fn render(world: &World, config: &FieldConfig) -> Document {
     document = document.add(path);
 
     for (p, c) in &world.particles {
-        let color = if *c > 0.0 { "red" } else { "blue" };
+        let color = if *c > 0 { "red" } else { "blue" };
         let circle = Circle::new()
             .set("cx", p.x)
             .set("cy", p.y)

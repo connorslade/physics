@@ -4,7 +4,7 @@ use crate::Pos;
 
 pub struct World {
     pub size: Pos,
-    pub particles: Vec<(Pos, f32)>,
+    pub particles: Vec<(Pos, i32)>,
 }
 
 pub struct FieldConfig {
@@ -22,7 +22,7 @@ impl World {
             let r = between.magnitude();
             let direction = between.normalize();
 
-            force += direction * -(*c) / r.powi(2);
+            force += direction * -(*c as f32) / r.powi(2);
         }
         force
     }
@@ -41,14 +41,22 @@ impl World {
         pos.x < 0.0 || pos.x > self.size.x || pos.y < 0.0 || pos.y > self.size.y
     }
 
+    pub fn world_to_screen(&self, pos: Pos, screen_size: Pos) -> Pos {
+        pos.component_div(&self.size).component_mul(&screen_size)
+    }
+
+    pub fn screen_to_world(&self, pos: Pos, screen_size: Pos) -> Pos {
+        pos.component_div(&screen_size).component_mul(&self.size)
+    }
+
     pub fn generate_field_lines(
         &self,
         config: &FieldConfig,
         pos: Pos,
-        charge: f32,
+        charge: i32,
     ) -> Vec<(Pos, Pos)> {
-        let out_lines = (config.lines_per_charge as f32 * charge.abs()).round();
-        let is_positive = charge > 0.0;
+        let out_lines = config.lines_per_charge * charge.abs() as usize;
+        let is_positive = charge > 0;
 
         let mut lines = Vec::new();
 
