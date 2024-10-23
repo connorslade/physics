@@ -61,10 +61,13 @@ impl World {
             let mut line = Vec::new();
 
             for _ in 0..config.steps {
-                let force = self.force_at(pos) * if is_positive { 1.0 } else { -1.0 };
-                let new_pos = pos + force.normalize() * config.step;
+                let was_oob = self.out_of_bounds(pos);
 
-                if !self.out_of_bounds(new_pos) && !self.out_of_bounds(pos) {
+                let force = self.force_at(pos) * if is_positive { 1.0 } else { -1.0 };
+                let new_pos =
+                    pos + force.normalize() * config.step * if was_oob { 10.0 } else { 1.0 };
+
+                if !self.out_of_bounds(new_pos) && !was_oob {
                     line.push((pos, new_pos));
                 }
 
