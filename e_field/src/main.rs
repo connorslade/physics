@@ -1,6 +1,8 @@
+use interactive::Application;
 use nalgebra::Vector2;
 use world::{FieldConfig, World};
 
+mod interactive;
 mod svg;
 mod world;
 
@@ -23,6 +25,8 @@ fn main() {
         step: 1.0,
     };
 
-    let document = svg::render(&world, &config);
-    ::svg::save("image.svg", &document).unwrap();
+    Application::new(world, config).run();
+
+    // let document = svg::render(&world, &config);
+    // ::svg::save("image.svg", &document).unwrap();
 }
