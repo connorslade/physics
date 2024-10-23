@@ -21,7 +21,7 @@ fn main() {
     let config = FieldConfig {
         lines_per_charge: 6,
         line_width: 1.0,
-        steps: 10 * 300,
+        steps: 30_000,
         step: 1.0,
     };
 

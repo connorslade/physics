@@ -10,13 +10,14 @@ use wgpu::{
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
 };
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
 use crate::world::{FieldConfig, World};
 
 const TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
+const PARTICLE_RADIUS: f32 = 20.0;
 
 pub struct Application<'a> {
     state: Option<State<'a>>,
@@ -28,6 +29,9 @@ pub struct Application<'a> {
 pub struct State<'a> {
     graphics: RenderContext<'a>,
     window_size: Vector2<f32>,
+
+    mouse_down: bool,
+    last_mouse: Vector2<f32>,
 }
 
 pub struct RenderContext<'a> {
@@ -69,6 +73,8 @@ impl<'a> ApplicationHandler for Application<'a> {
 
         self.state = Some(State {
             window_size: self.world.size,
+            mouse_down: false,
+            last_mouse: Vector2::new(0.0, 0.0),
             graphics: RenderContext {
                 renderer,
 
@@ -99,6 +105,27 @@ impl<'a> ApplicationHandler for Application<'a> {
 
                 state.window_size = size;
                 self.resize_surface();
+            }
+            WindowEvent::MouseInput {
+                state: mouse,
+                button: MouseButton::Left,
+                ..
+            } => {
+                state.mouse_down = mouse == ElementState::Pressed;
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let pos = Vector2::new(position.x as f32, position.y as f32);
+                let delta = pos - state.last_mouse;
+
+                for (pos, _) in &mut self.world.particles {
+                    let hovered = (*pos - state.last_mouse).magnitude() < PARTICLE_RADIUS;
+                    if hovered && state.mouse_down {
+                        *pos += delta;
+                        break;
+                    }
+                }
+
+                state.last_mouse = pos;
             }
             WindowEvent::RedrawRequested => {
                 let physical_screen_size = state.graphics.window.inner_size();
@@ -135,7 +162,7 @@ impl<'a> ApplicationHandler for Application<'a> {
 
                 for (pos, charge) in &self.world.particles {
                     let color = if *charge > 0 { Color::RED } else { Color::BLUE };
-                    let shape = Circle::new((pos.x, pos.y), 20.0);
+                    let shape = Circle::new((pos.x, pos.y), PARTICLE_RADIUS as f64);
                     scene.fill(Fill::NonZero, Affine::IDENTITY, color, None, &shape);
                 }
 
