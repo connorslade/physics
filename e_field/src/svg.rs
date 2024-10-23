@@ -12,7 +12,7 @@ pub fn render(world: &World, config: &FieldConfig) -> Document {
     let mut last = Pos::new(0.0, 0.0);
 
     for (pos, c) in world.particles.iter() {
-        let lines = world.generate_field_lines(&config, *pos, *c);
+        let lines = world.generate_field_lines(config, *pos, *c);
 
         for (start, end) in lines {
             if last != start {

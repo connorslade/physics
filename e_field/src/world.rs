@@ -41,26 +41,18 @@ impl World {
         pos.x < 0.0 || pos.x > self.size.x || pos.y < 0.0 || pos.y > self.size.y
     }
 
-    pub fn world_to_screen(&self, pos: Pos, screen_size: Pos) -> Pos {
-        pos.component_div(&self.size).component_mul(&screen_size)
-    }
-
-    pub fn screen_to_world(&self, pos: Pos, screen_size: Pos) -> Pos {
-        pos.component_div(&screen_size).component_mul(&self.size)
-    }
-
     pub fn generate_field_lines(
         &self,
         config: &FieldConfig,
         pos: Pos,
         charge: i32,
     ) -> Vec<(Pos, Pos)> {
-        let out_lines = config.lines_per_charge * charge.abs() as usize;
+        let out_lines = config.lines_per_charge * charge.unsigned_abs() as usize;
         let is_positive = charge > 0;
 
         let mut lines = Vec::new();
 
-        'line: for i in 0..(out_lines as usize) {
+        'line: for i in 0..out_lines {
             let angle = 2.0 * PI * i as f32 / out_lines as f32 + PI / out_lines as f32;
             let angle_offset = Pos::new(angle.cos(), angle.sin()) * 0.9;
             let start = pos + angle_offset;

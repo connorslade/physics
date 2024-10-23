@@ -2,22 +2,26 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nalgebra::Vector2;
-use vello::kurbo::{stroke, Affine, Circle, PathEl, Point, Stroke, StrokeOpts};
-use vello::peniko::{Color, Fill};
+use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 use wgpu::{
     CompositeAlphaMode, Device, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode, Queue,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
 };
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::event::{ElementState, KeyEvent, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::PhysicalKey;
 use winit::window::{Window, WindowId};
 
 use crate::world::{FieldConfig, World};
+use crate::Pos;
 
 const TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
 const PARTICLE_RADIUS: f32 = 20.0;
+
+mod draw;
+mod interface;
 
 pub struct Application<'a> {
     state: Option<State<'a>>,
@@ -30,7 +34,9 @@ pub struct State<'a> {
     graphics: RenderContext<'a>,
     window_size: Vector2<f32>,
 
-    mouse_down: bool,
+    dragging: Option<usize>,
+    mouse_down: [bool; 2],
+    mouse_delta: Vector2<f32>,
     last_mouse: Vector2<f32>,
 }
 
@@ -73,7 +79,9 @@ impl<'a> ApplicationHandler for Application<'a> {
 
         self.state = Some(State {
             window_size: self.world.size,
-            mouse_down: false,
+            dragging: None,
+            mouse_down: [false; 2],
+            mouse_delta: Vector2::new(0.0, 0.0),
             last_mouse: Vector2::new(0.0, 0.0),
             graphics: RenderContext {
                 renderer,
@@ -108,25 +116,29 @@ impl<'a> ApplicationHandler for Application<'a> {
             }
             WindowEvent::MouseInput {
                 state: mouse,
-                button: MouseButton::Left,
+                button,
                 ..
             } => {
-                state.mouse_down = mouse == ElementState::Pressed;
+                if button == MouseButton::Left {
+                    state.mouse_down[0] = mouse == ElementState::Pressed;
+                } else if button == MouseButton::Right {
+                    state.mouse_down[1] = mouse == ElementState::Pressed;
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = Vector2::new(position.x as f32, position.y as f32);
-                let delta = pos - state.last_mouse;
-
-                for (pos, _) in &mut self.world.particles {
-                    let hovered = (*pos - state.last_mouse).magnitude() < PARTICLE_RADIUS;
-                    if hovered && state.mouse_down {
-                        *pos += delta;
-                        break;
-                    }
-                }
-
+                state.mouse_delta = pos - state.last_mouse;
                 state.last_mouse = pos;
             }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(key),
+                        state: ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => interface::on_key(state, &mut self.world, key),
             WindowEvent::RedrawRequested => {
                 let physical_screen_size = state.graphics.window.inner_size();
                 let screen_size = Vector2::new(
@@ -137,34 +149,8 @@ impl<'a> ApplicationHandler for Application<'a> {
                 let mut scene = Scene::new();
 
                 self.world.size = screen_size;
-                for (pos, charge) in &self.world.particles {
-                    let lines = self.world.generate_field_lines(&self.config, *pos, *charge);
-                    let mut last = Vector2::new(0.0, 0.0);
-                    let mut path = Vec::new();
-
-                    for (start, end) in lines {
-                        if last != start {
-                            path.push(PathEl::MoveTo(Point::new(start.x as f64, start.y as f64)));
-                        }
-                        path.push(PathEl::LineTo(Point::new(end.x as f64, end.y as f64)));
-
-                        last = end;
-                    }
-
-                    let path = stroke(
-                        path,
-                        &Stroke::new(self.config.line_width as f64),
-                        &StrokeOpts::default(),
-                        1.0,
-                    );
-                    scene.fill(Fill::NonZero, Affine::IDENTITY, Color::WHITE, None, &path);
-                }
-
-                for (pos, charge) in &self.world.particles {
-                    let color = if *charge > 0 { Color::RED } else { Color::BLUE };
-                    let shape = Circle::new((pos.x, pos.y), PARTICLE_RADIUS as f64);
-                    scene.fill(Fill::NonZero, Affine::IDENTITY, color, None, &shape);
-                }
+                interface::update(state, &mut self.world);
+                draw::draw(&mut scene, &mut self.world, &self.config);
 
                 let surface_texture = state.graphics.surface.get_current_texture().unwrap();
                 state
@@ -186,6 +172,7 @@ impl<'a> ApplicationHandler for Application<'a> {
                 surface_texture.present();
 
                 state.graphics.window.request_redraw();
+                state.mouse_delta = Pos::zeros();
             }
             _ => (),
         }
