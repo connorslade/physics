@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
 
+use rayon::iter::{ParallelBridge, ParallelIterator};
+
 use crate::Pos;
 
 pub struct World {
@@ -50,40 +52,40 @@ impl World {
         let out_lines = config.lines_per_charge * charge.unsigned_abs() as usize;
         let is_positive = charge > 0;
 
-        let mut lines = Vec::new();
+        (0..out_lines)
+            .par_bridge()
+            .filter_map(|i| {
+                let angle = 2.0 * PI * i as f32 / out_lines as f32 + PI / out_lines as f32;
+                let angle_offset = Pos::new(angle.cos(), angle.sin()) * 0.9;
+                let start = pos + angle_offset;
 
-        'line: for i in 0..out_lines {
-            let angle = 2.0 * PI * i as f32 / out_lines as f32 + PI / out_lines as f32;
-            let angle_offset = Pos::new(angle.cos(), angle.sin()) * 0.9;
-            let start = pos + angle_offset;
+                let mut pos = Pos::new(start.x, start.y);
+                let mut line = Vec::new();
 
-            let mut pos = Pos::new(start.x, start.y);
-            let mut line = Vec::new();
+                for _ in 0..config.steps {
+                    let was_oob = self.out_of_bounds(pos);
+                    let force = self.force_at(pos) * if is_positive { 1.0 } else { -1.0 };
+                    let new_pos =
+                        pos + force.normalize() * config.step * if was_oob { 10.0 } else { 1.0 };
 
-            for _ in 0..config.steps {
-                let was_oob = self.out_of_bounds(pos);
+                    if !self.out_of_bounds(new_pos) && !was_oob {
+                        line.push((pos, new_pos));
+                    }
 
-                let force = self.force_at(pos) * if is_positive { 1.0 } else { -1.0 };
-                let new_pos =
-                    pos + force.normalize() * config.step * if was_oob { 10.0 } else { 1.0 };
-
-                if !self.out_of_bounds(new_pos) && !was_oob {
-                    line.push((pos, new_pos));
+                    pos = new_pos;
+                    if self.at_particle(pos, 0.9) {
+                        if is_positive {
+                            break;
+                        } else {
+                            // Returning None to indicate skipping to the next iteration
+                            return None;
+                        }
+                    }
                 }
 
-                pos = new_pos;
-                if self.at_particle(pos, 0.9) {
-                    if is_positive {
-                        break;
-                    } else {
-                        continue 'line;
-                    }
-                };
-            }
-
-            lines.extend(line);
-        }
-
-        lines
+                Some(line)
+            })
+            .flatten()
+            .collect()
     }
 }

@@ -43,6 +43,7 @@ pub fn on_key(scale: f32, state: &mut State, world: &mut World, key: KeyCode) {
         .iter_mut()
         .enumerate()
         .find(|(_, (pos, _))| (*pos - state.mouse).magnitude() < radius);
+    let index = hovering.as_ref().map(|(i, _)| *i);
 
     match key {
         KeyCode::Equal => {
@@ -62,5 +63,10 @@ pub fn on_key(scale: f32, state: &mut State, world: &mut World, key: KeyCode) {
         _ => {}
     }
 
-    world.particles.retain(|(_, charge)| *charge != 0);
+    if let Some(i) = index {
+        if world.particles[i].1 == 0 {
+            world.particles.remove(i);
+            state.dragging = None;
+        }
+    }
 }

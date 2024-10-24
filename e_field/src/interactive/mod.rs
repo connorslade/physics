@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::time::Instant;
 
 use nalgebra::Vector2;
 use vello::peniko::Color;
@@ -15,10 +16,10 @@ use winit::keyboard::PhysicalKey;
 use winit::window::{Window, WindowId};
 
 use crate::world::{FieldConfig, World};
-use crate::Pos;
 
 const TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
 const PARTICLE_RADIUS: f32 = 27.0;
+const WINDOW_TITLE: &str = "e_field | Connor Slade";
 
 mod draw;
 mod interface;
@@ -52,7 +53,7 @@ impl<'a> ApplicationHandler for Application<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes().with_title("e_field | Connor Slade"))
+                .create_window(Window::default_attributes().with_title(WINDOW_TITLE))
                 .unwrap(),
         );
 
@@ -147,8 +148,15 @@ impl<'a> ApplicationHandler for Application<'a> {
 
                 self.world.size = screen_size;
 
+                let start = Instant::now();
                 interface::update(scale, state, &mut self.world);
                 draw::draw(scale, &mut scene, &mut self.world, &self.config);
+
+                let delta = start.elapsed();
+                state
+                    .graphics
+                    .window
+                    .set_title(&format!("{WINDOW_TITLE} | {}ms", delta.as_millis()));
 
                 let surface_texture = state.graphics.surface.get_current_texture().unwrap();
                 state
@@ -201,7 +209,7 @@ impl Application<'_> {
                 format: TEXTURE_FORMAT,
                 width: size.width,
                 height: size.height,
-                present_mode: PresentMode::AutoVsync,
+                present_mode: PresentMode::Immediate,
                 desired_maximum_frame_latency: 1,
                 alpha_mode: CompositeAlphaMode::Opaque,
                 view_formats: vec![],
