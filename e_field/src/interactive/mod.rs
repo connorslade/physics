@@ -36,8 +36,7 @@ pub struct State<'a> {
 
     dragging: Option<usize>,
     mouse_down: [bool; 2],
-    mouse_delta: Vector2<f32>,
-    last_mouse: Vector2<f32>,
+    mouse: Vector2<f32>,
 }
 
 pub struct RenderContext<'a> {
@@ -81,8 +80,7 @@ impl<'a> ApplicationHandler for Application<'a> {
             window_size: self.world.size,
             dragging: None,
             mouse_down: [false; 2],
-            mouse_delta: Vector2::new(0.0, 0.0),
-            last_mouse: Vector2::new(0.0, 0.0),
+            mouse: Vector2::new(0.0, 0.0),
             graphics: RenderContext {
                 renderer,
 
@@ -100,6 +98,7 @@ impl<'a> ApplicationHandler for Application<'a> {
             return;
         }
 
+        let scale = state.graphics.window.scale_factor() as f32;
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -126,9 +125,7 @@ impl<'a> ApplicationHandler for Application<'a> {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let pos = Vector2::new(position.x as f32, position.y as f32);
-                state.mouse_delta = pos - state.last_mouse;
-                state.last_mouse = pos;
+                state.mouse = Vector2::new(position.x as f32, position.y as f32)
             }
             WindowEvent::KeyboardInput {
                 event:
@@ -138,7 +135,7 @@ impl<'a> ApplicationHandler for Application<'a> {
                         ..
                     },
                 ..
-            } => interface::on_key(state, &mut self.world, key),
+            } => interface::on_key(scale, state, &mut self.world, key),
             WindowEvent::RedrawRequested => {
                 let physical_screen_size = state.graphics.window.inner_size();
                 let screen_size = Vector2::new(
@@ -149,9 +146,8 @@ impl<'a> ApplicationHandler for Application<'a> {
                 let mut scene = Scene::new();
 
                 self.world.size = screen_size;
-                let scale = state.graphics.window.scale_factor() as f32;
 
-                interface::update(state, &mut self.world);
+                interface::update(scale, state, &mut self.world);
                 draw::draw(scale, &mut scene, &mut self.world, &self.config);
 
                 let surface_texture = state.graphics.surface.get_current_texture().unwrap();
@@ -174,7 +170,6 @@ impl<'a> ApplicationHandler for Application<'a> {
                 surface_texture.present();
 
                 state.graphics.window.request_redraw();
-                state.mouse_delta = Pos::zeros();
             }
             _ => (),
         }
