@@ -20,7 +20,9 @@ static FONT: Lazy<Font> = Lazy::new(|| {
 
 static FONT_REF: Lazy<FontRef> = Lazy::new(|| FontRef::new(FONT.data.data()).unwrap());
 
-pub fn draw(scene: &mut Scene, world: &mut World, config: &FieldConfig) {
+pub fn draw(scale: f32, scene: &mut Scene, world: &mut World, config: &FieldConfig) {
+    let font_size = 16.0 * scale;
+
     for (pos, charge) in &world.particles {
         let lines = world.generate_field_lines(config, *pos, *charge);
         let mut last = Vector2::new(0.0, 0.0);
@@ -37,7 +39,7 @@ pub fn draw(scene: &mut Scene, world: &mut World, config: &FieldConfig) {
 
         let path = stroke(
             path,
-            &Stroke::new(config.line_width as f64),
+            &Stroke::new((scale * config.line_width) as f64),
             &StrokeOpts::default(),
             1.0,
         );
@@ -46,7 +48,7 @@ pub fn draw(scene: &mut Scene, world: &mut World, config: &FieldConfig) {
 
     for (pos, charge) in &world.particles {
         let color = if *charge > 0 { Color::RED } else { Color::BLUE };
-        let shape = Circle::new((pos.x, pos.y), PARTICLE_RADIUS as f64);
+        let shape = Circle::new((pos.x, pos.y), (scale * PARTICLE_RADIUS) as f64);
         scene.fill(Fill::NonZero, Affine::IDENTITY, color, None, &shape);
 
         let text = format!(
@@ -58,8 +60,8 @@ pub fn draw(scene: &mut Scene, world: &mut World, config: &FieldConfig) {
         let axes = FONT_REF.axes();
         let variations: &[(&str, f32)] = &[];
         let var_loc = axes.location(variations);
-        let metrics = FONT_REF.metrics(Size::new(16.0), &var_loc);
-        let glyph_metrics = FONT_REF.glyph_metrics(Size::new(16.0), &var_loc);
+        let metrics = FONT_REF.metrics(Size::new(font_size), &var_loc);
+        let glyph_metrics = FONT_REF.glyph_metrics(Size::new(font_size), &var_loc);
 
         let text_height = metrics.ascent + metrics.descent;
         let text_width = text.chars().fold(0.0, |acc, x| {
@@ -70,18 +72,22 @@ pub fn draw(scene: &mut Scene, world: &mut World, config: &FieldConfig) {
 
         let mut x_offset = -text_width / 2.0;
 
-        scene.draw_glyphs(&FONT).brush(Color::WHITE).draw(
-            Fill::EvenOdd,
-            text.chars().map(|x| {
-                let gid = FONT_REF.charmap().map(x).unwrap_or_default();
-                let (x, y) = (pos.x + x_offset, pos.y + text_height / 2.0);
-                x_offset += glyph_metrics.advance_width(gid).unwrap_or_default();
-                Glyph {
-                    id: gid.to_u32(),
-                    x,
-                    y,
-                }
-            }),
-        );
+        scene
+            .draw_glyphs(&FONT)
+            .font_size(font_size)
+            .brush(Color::WHITE)
+            .draw(
+                Fill::EvenOdd,
+                text.chars().map(|x| {
+                    let gid = FONT_REF.charmap().map(x).unwrap_or_default();
+                    let (x, y) = (pos.x + x_offset, pos.y + text_height / 2.0);
+                    x_offset += glyph_metrics.advance_width(gid).unwrap_or_default();
+                    Glyph {
+                        id: gid.to_u32(),
+                        x,
+                        y,
+                    }
+                }),
+            );
     }
 }

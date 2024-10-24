@@ -18,7 +18,7 @@ use crate::world::{FieldConfig, World};
 use crate::Pos;
 
 const TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
-const PARTICLE_RADIUS: f32 = 20.0;
+const PARTICLE_RADIUS: f32 = 27.0;
 
 mod draw;
 mod interface;
@@ -149,8 +149,10 @@ impl<'a> ApplicationHandler for Application<'a> {
                 let mut scene = Scene::new();
 
                 self.world.size = screen_size;
+                let scale = state.graphics.window.scale_factor() as f32;
+
                 interface::update(state, &mut self.world);
-                draw::draw(&mut scene, &mut self.world, &self.config);
+                draw::draw(scale, &mut scene, &mut self.world, &self.config);
 
                 let surface_texture = state.graphics.surface.get_current_texture().unwrap();
                 state
