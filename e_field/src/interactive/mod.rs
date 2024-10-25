@@ -1,13 +1,15 @@
+use std::iter;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::time::Instant;
 
+use draw::FieldLinePipeline;
 use nalgebra::Vector2;
 use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 use wgpu::{
     CompositeAlphaMode, Device, DeviceDescriptor, Instance, InstanceDescriptor, PresentMode, Queue,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
+    TextureViewDescriptor,
 };
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, MouseButton, WindowEvent};
@@ -17,7 +19,7 @@ use winit::window::{Window, WindowId};
 
 use crate::world::{FieldConfig, World};
 
-const TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
+const TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 const PARTICLE_RADIUS: f32 = 27.0;
 const WINDOW_TITLE: &str = "e_field | Connor Slade";
 
@@ -41,7 +43,8 @@ pub struct State<'a> {
 }
 
 pub struct RenderContext<'a> {
-    pub renderer: Renderer,
+    pub vello: Renderer,
+    pub renderer: FieldLinePipeline,
 
     pub window: Arc<Window>,
     pub surface: Surface<'a>,
@@ -66,7 +69,7 @@ impl<'a> ApplicationHandler for Application<'a> {
         let (device, queue) =
             pollster::block_on(adapter.request_device(&DeviceDescriptor::default(), None)).unwrap();
 
-        let renderer = Renderer::new(
+        let vello = Renderer::new(
             &device,
             RendererOptions {
                 surface_format: Some(TEXTURE_FORMAT),
@@ -77,14 +80,16 @@ impl<'a> ApplicationHandler for Application<'a> {
         )
         .unwrap();
 
+        let renderer = FieldLinePipeline::new(&device);
+
         self.state = Some(State {
             window_size: self.world.size,
             dragging: None,
             mouse_down: [false; 2],
             mouse: Vector2::new(0.0, 0.0),
             graphics: RenderContext {
+                vello,
                 renderer,
-
                 window,
                 surface,
                 device,
@@ -148,33 +153,40 @@ impl<'a> ApplicationHandler for Application<'a> {
 
                 self.world.size = screen_size;
 
-                let start = Instant::now();
                 interface::update(scale, state, &mut self.world);
-                draw::draw(scale, &mut scene, &mut self.world, &self.config);
-
-                let delta = start.elapsed();
-                state
-                    .graphics
-                    .window
-                    .set_title(&format!("{WINDOW_TITLE} | {}ms", delta.as_millis()));
+                draw::draw(scale, &mut scene, &mut self.world);
 
                 let surface_texture = state.graphics.surface.get_current_texture().unwrap();
+
+                let view = &surface_texture
+                    .texture
+                    .create_view(&TextureViewDescriptor::default());
+
+                let mut encoder = state
+                    .graphics
+                    .device
+                    .create_command_encoder(&Default::default());
+
+                state.graphics.renderer.draw(&mut encoder, view);
+                state.graphics.queue.submit(iter::once(encoder.finish()));
+
                 state
                     .graphics
-                    .renderer
-                    .render_to_surface(
+                    .vello
+                    .render_to_texture(
                         &state.graphics.device,
                         &state.graphics.queue,
                         &scene,
-                        &surface_texture,
+                        &view,
                         &RenderParams {
-                            base_color: Color::BLACK,
+                            base_color: Color::TRANSPARENT,
                             width: physical_screen_size.width,
                             height: physical_screen_size.height,
                             antialiasing_method: AaConfig::Msaa16,
                         },
                     )
                     .unwrap();
+
                 surface_texture.present();
 
                 state.graphics.window.request_redraw();
@@ -209,7 +221,7 @@ impl Application<'_> {
                 format: TEXTURE_FORMAT,
                 width: size.width,
                 height: size.height,
-                present_mode: PresentMode::Immediate,
+                present_mode: PresentMode::AutoVsync,
                 desired_maximum_frame_latency: 1,
                 alpha_mode: CompositeAlphaMode::Opaque,
                 view_formats: vec![],
