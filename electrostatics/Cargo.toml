@@ -1,0 +1,11 @@
+[package]
+name = "electrostatics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+compute = { git = "https://github.com/connorslade/compute", features = [
+    "interactive",
+] }
+encase = { version = "0.10.0", features = ["nalgebra"] }
