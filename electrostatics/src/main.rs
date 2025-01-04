@@ -4,7 +4,7 @@ use anyhow::Result;
 use compute::{
     buffer::StorageBuffer,
     export::{
-        egui::{self, emath::Numeric, Context, Key, Modifiers, Slider, Ui},
+        egui::{self, emath::Numeric, Context, DragValue, Slider, Ui},
         nalgebra::Vector2,
         wgpu::{include_wgsl, RenderPass, ShaderStages},
         winit::window::WindowAttributes,
@@ -53,7 +53,12 @@ impl Interactive for App {
 
     fn ui(&mut self, gcx: GraphicsCtx, ctx: &Context) {
         let dragging_viewport = ctx.dragged_id().is_none();
+
+        let window = gcx.window.inner_size();
+        let scale = window.width.min(window.height) as f32;
+
         ctx.input_mut(|input| {
+            let old_scale = self.ctx.scale;
             self.ctx.scale += input.smooth_scroll_delta.y / 200.0;
 
             if input.pointer.any_down() && dragging_viewport {
@@ -61,25 +66,45 @@ impl Interactive for App {
                 self.ctx.position += Vector2::new(-delta.x, delta.y);
             }
 
-            let screen = gcx.window.inner_size();
-            if input.consume_key(Modifiers::NONE, Key::Plus) {
-                let coord = input.pointer.latest_pos().unwrap();
-                let coord = Vector2::new(
-                    coord.x / screen.width as f32,
-                    1.0 - coord.y / screen.height as f32,
-                );
-                self.ctx.particles.push(Particle {
-                    charge: 2,
-                    position: coord,
-                });
-            }
+            let Some(pointer) = input.pointer.latest_pos() else {
+                return;
+            };
+
+            let pointer = (Vector2::new(
+                pointer.x / window.width as f32,
+                1.0 - pointer.y / window.height as f32,
+            ) - Vector2::repeat(0.5)
+                + self.ctx.position / scale)
+                / self.ctx.scale
+                + Vector2::repeat(0.5);
+
+            self.ctx.position +=
+                (pointer - self.ctx.position) * (old_scale - self.ctx.scale) / old_scale;
+
+            self.ctx
+                .particles
+                .retain(|x| (x.position - pointer).magnitude() > 0.1);
+
+            // if input.consume_key(Modifiers::NONE, Key::Plus) {
+            //     self.ctx.particles.push(Particle {
+            //         charge: 2,
+            //         position: pointer,
+            //     });
+            // }
         });
 
         egui::Window::new("Electrostatics")
             .max_width(0.0)
             .resizable(false)
             .show(ctx, |ui| {
-                dragger(ui, "Scale", &mut self.ctx.scale, 0.01..=1.0);
+                dragger(ui, "Scale", &mut self.ctx.scale, 0.1..=1.0);
+
+                ui.horizontal(|ui| {
+                    ui.add(DragValue::new(&mut self.ctx.position.x));
+                    ui.label("x");
+                    ui.add(DragValue::new(&mut self.ctx.position.y));
+                    ui.label("Position");
+                });
 
                 ui.separator();
 
