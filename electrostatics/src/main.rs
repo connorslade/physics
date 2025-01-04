@@ -2,21 +2,22 @@ use std::ops::RangeInclusive;
 
 use anyhow::Result;
 use compute::{
-    buffer::UniformBuffer,
+    buffer::StorageBuffer,
     export::{
-        egui::{self, emath::Numeric, Context, Slider, Ui},
+        egui::{self, emath::Numeric, Context, Key, Modifiers, Slider, Ui},
         nalgebra::Vector2,
         wgpu::{include_wgsl, RenderPass, ShaderStages},
         winit::window::WindowAttributes,
     },
     gpu::Gpu,
     interactive::{GraphicsCtx, Interactive},
+    misc::mutability::Immutable,
     pipeline::render::RenderPipeline,
 };
 use encase::ShaderType;
 
 struct App {
-    uniform: UniformBuffer<Uniform>,
+    uniform: StorageBuffer<Uniform, Immutable>,
     render: RenderPipeline,
 
     ctx: Uniform,
@@ -35,10 +36,10 @@ struct Uniform {
     particles: Vec<Particle>,
 }
 
-#[derive(ShaderType, Default)]
+#[derive(ShaderType, Default, Clone)]
 struct Particle {
     charge: i32,
-    pos: Vector2<f32>,
+    position: Vector2<f32>,
 }
 
 impl Interactive for App {
@@ -50,13 +51,27 @@ impl Interactive for App {
         self.render.draw_screen_quad(render_pass);
     }
 
-    fn ui(&mut self, _gcx: GraphicsCtx, ctx: &Context) {
+    fn ui(&mut self, gcx: GraphicsCtx, ctx: &Context) {
         let dragging_viewport = ctx.dragged_id().is_none();
-        ctx.input(|input| {
+        ctx.input_mut(|input| {
             self.ctx.scale += input.smooth_scroll_delta.y / 200.0;
+
             if input.pointer.any_down() && dragging_viewport {
                 let delta = input.pointer.delta();
                 self.ctx.position += Vector2::new(-delta.x, delta.y);
+            }
+
+            let screen = gcx.window.inner_size();
+            if input.consume_key(Modifiers::NONE, Key::Plus) {
+                let coord = input.pointer.latest_pos().unwrap();
+                let coord = Vector2::new(
+                    coord.x / screen.width as f32,
+                    1.0 - coord.y / screen.height as f32,
+                );
+                self.ctx.particles.push(Particle {
+                    charge: 2,
+                    position: coord,
+                });
             }
         });
 
@@ -84,7 +99,12 @@ fn dragger<T: Numeric>(ui: &mut Ui, label: &str, value: &mut T, range: RangeIncl
 fn main() -> Result<()> {
     let gpu = Gpu::init()?;
 
-    let uniform = gpu.create_uniform(Uniform::default()).unwrap();
+    let uniform = gpu
+        .create_storage_read(Uniform {
+            particles: vec![],
+            ..Default::default()
+        })
+        .unwrap();
     let render = gpu
         .render_pipeline(include_wgsl!("shader.wgsl"))
         .bind_buffer(&uniform, ShaderStages::FRAGMENT)
@@ -100,6 +120,16 @@ fn main() -> Result<()> {
                 scale: 1.0,
                 e_solutions: 5,
                 v_solutions: 5,
+                particles: vec![
+                    Particle {
+                        charge: 2,
+                        position: Vector2::new(0.3, 0.5),
+                    },
+                    Particle {
+                        charge: -2,
+                        position: Vector2::new(0.7, 0.5),
+                    },
+                ],
                 ..Default::default()
             },
         },
