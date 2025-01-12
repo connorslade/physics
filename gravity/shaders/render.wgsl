@@ -29,7 +29,7 @@ fn vert(
     let particle = particles[index];
 
     let scale = ctx.window.yx / min(ctx.window.x, ctx.window.y);
-    let position = (pos.xy * scale * ctx.radius) + (particle.position * 2.0 - 1.0);
+    let position = scale * ((pos.xy * ctx.radius) + (particle.position * 2.0 - 1.0));
 
     return VertexOutput(vec4(position, 1.0, 1.0), uv);
 }
@@ -40,7 +40,7 @@ fn frag(in: VertexOutput) -> @location(0) vec4<f32> {
     let border = 0.001 / ctx.radius;
 
     let inside = step(border, dist);
-    let edge = step(0.0, dist) * (1.0 - inside) * (dist / border) * f32(border != 0);
+    let edge = step(0.0, dist) * (1.0 - inside) * (dist / border);
 
     return vec4(inside + edge);
 }
