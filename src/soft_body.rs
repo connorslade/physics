@@ -12,6 +12,7 @@ use engine::{
 use itertools::Itertools;
 
 use crate::{
+    consts::color,
     misc::repeat_first::IteratorRepeatFirst,
     physics::{one_sided_spring, spring},
 };
@@ -104,7 +105,7 @@ impl SoftBody {
             let points = self.points.get_many_mut(constraint.points).unwrap();
             Line::new(points[0].position + center, points[1].position + center)
                 .thickness(4.0)
-                .color(Rgb::hex(0xFF0000))
+                .color(color::RED)
                 .draw(ctx);
 
             spring(points, constraint.distance, dt);
@@ -142,7 +143,7 @@ impl SoftBody {
         angle /= self.points.len() as f32;
 
         Circle::new(8.0)
-            .color(Rgb::hex(0x0000FF))
+            .color(color::BLUE)
             .position(com + center, Anchor::Center)
             .z_index(1)
             .draw(ctx);
@@ -152,12 +153,12 @@ impl SoftBody {
             one_sided_spring(point, pos, 0.0, dt);
 
             Circle::new(4.0)
-                .color(Rgb::hex(0x00FF00))
+                .color(color::GREEN)
                 .position(pos + center, Anchor::Center)
                 .z_index(1)
                 .draw(ctx);
             Line::new(pos + center, point.position + center)
-                .color(Rgb::hex(0xFF00))
+                .color(color::GREEN)
                 .thickness(4.0)
                 .cap(LineCap::Round)
                 .z_index(1)

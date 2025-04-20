@@ -1,12 +1,13 @@
 #![feature(get_many_mut)]
 
+use consts::color;
 use engine::{
     application::{Application, ApplicationArgs},
-    color::Rgb,
     exports::winit::{event::MouseButton, window::WindowAttributes},
 };
 use soft_body::SoftBody;
 
+mod consts;
 mod misc;
 mod physics;
 mod soft_body;
@@ -20,7 +21,7 @@ fn main() {
 
             Box::new(move |ctx| {
                 let dt = ctx.delta_time;
-                ctx.background(Rgb::repeat(0.235));
+                ctx.background(color::BACKGROUND);
 
                 let center = ctx.center();
                 for body in soft_bodies.iter_mut() {
