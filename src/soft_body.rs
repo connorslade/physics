@@ -61,6 +61,12 @@ impl SoftBody {
             constraints,
         }
     }
+
+    pub fn apply_force(&mut self, dt: f32, force: Vector2<f32>) {
+        for point in self.points.iter_mut() {
+            point.velocity += force * dt;
+        }
+    }
 }
 
 impl SoftBody {
@@ -85,7 +91,7 @@ impl SoftBody {
 
 impl SoftBody {
     pub fn tick(&mut self, ctx: &mut GraphicsContext) {
-        let dt = ctx.delta_time;
+        let (dt, center) = (ctx.delta_time, ctx.center());
 
         for i in 0..self.points.len() {
             let (a, b) = (i, (i + 1) % self.points.len());
@@ -96,13 +102,17 @@ impl SoftBody {
 
         for constraint in self.constraints.iter() {
             let points = self.points.get_many_mut(constraint.points).unwrap();
+            Line::new(points[0].position + center, points[1].position + center)
+                .thickness(4.0)
+                .color(Rgb::hex(0xFF0000))
+                .draw(ctx);
+
             spring(points, constraint.distance, dt);
         }
 
         self.shape_match(ctx);
 
         for point in self.points.iter_mut() {
-            point.velocity -= Vector2::y() * 30.0 * dt;
             point.position += point.velocity * dt;
 
             let floor = -400.0;
@@ -131,12 +141,15 @@ impl SoftBody {
         }
         angle /= self.points.len() as f32;
 
+        Circle::new(8.0)
+            .color(Rgb::hex(0x0000FF))
+            .position(com + center, Anchor::Center)
+            .z_index(1)
+            .draw(ctx);
+
         for point in self.points.iter_mut() {
             let pos = (Rotation2::new(angle) * (point.initial - staring_com)) + com;
-
-            if point.position != pos {
-                one_sided_spring(point, pos, 0.0, dt);
-            }
+            one_sided_spring(point, pos, 0.0, dt);
 
             Circle::new(4.0)
                 .color(Rgb::hex(0x00FF00))

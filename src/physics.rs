@@ -4,7 +4,8 @@ use crate::soft_body::Point;
 
 pub fn spring([a, b]: [&mut Point; 2], distance: f32, dt: f32) {
     let delta = b.position - a.position;
-    let (mag, dir) = (delta.magnitude(), delta.normalize());
+    let mag = delta.magnitude();
+    let dir = delta.try_normalize(0.0).unwrap_or_default();
 
     let spring_force = (mag - distance) * dir;
     let damping_force = (b.velocity - a.velocity).dot(&dir) * dir;
@@ -16,7 +17,8 @@ pub fn spring([a, b]: [&mut Point; 2], distance: f32, dt: f32) {
 
 pub fn one_sided_spring(a: &mut Point, b: Vector2<f32>, distance: f32, dt: f32) {
     let delta = b - a.position;
-    let (mag, dir) = (delta.magnitude(), delta.normalize());
+    let mag = delta.magnitude();
+    let dir = delta.try_normalize(0.0).unwrap_or_default();
 
     let spring_force = (mag - distance) * dir;
     let damping_force = a.velocity.dot(&dir) * dir;
