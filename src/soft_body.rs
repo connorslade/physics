@@ -11,11 +11,7 @@ use engine::{
 };
 use itertools::Itertools;
 
-use crate::{
-    consts::color,
-    misc::repeat_first::IteratorRepeatFirst,
-    physics::{one_sided_spring, spring},
-};
+use crate::{consts::color, misc::repeat_first::IteratorRepeatFirst, physics::spring::Spring};
 
 pub struct SoftBody {
     pub points: Vec<Point>,
@@ -26,6 +22,7 @@ pub struct Point {
     pub initial: Vector2<f32>,
     pub position: Vector2<f32>,
     pub velocity: Vector2<f32>,
+    pub mass: f32,
 }
 
 pub struct Constraint {
@@ -48,6 +45,7 @@ impl SoftBody {
                 initial: pos,
                 position: pos,
                 velocity: Vector2::zeros(),
+                mass: 1.0,
             });
 
             let j = (i + n / 2) % n;
@@ -65,7 +63,7 @@ impl SoftBody {
 
     pub fn apply_force(&mut self, dt: f32, force: Vector2<f32>) {
         for point in self.points.iter_mut() {
-            point.velocity += force * dt;
+            point.velocity += force / point.mass * dt;
         }
     }
 }
@@ -91,14 +89,14 @@ impl SoftBody {
 }
 
 impl SoftBody {
-    pub fn tick(&mut self, ctx: &mut GraphicsContext) {
-        let (dt, center) = (ctx.delta_time, ctx.center());
+    pub fn tick(&mut self, ctx: &mut GraphicsContext, dt: f32) {
+        let center = ctx.center();
 
         for i in 0..self.points.len() {
             let (a, b) = (i, (i + 1) % self.points.len());
             let points = self.points.get_many_mut([a, b]).unwrap();
             let distance = (points[0].initial - points[1].initial).magnitude();
-            spring(points, distance, dt);
+            Spring::DEFAULT.with_distance(distance).tick(points, dt);
         }
 
         for constraint in self.constraints.iter() {
@@ -108,10 +106,12 @@ impl SoftBody {
                 .color(color::RED)
                 .draw(ctx);
 
-            spring(points, constraint.distance, dt);
+            Spring::DEFAULT
+                .with_distance(constraint.distance)
+                .tick(points, dt);
         }
 
-        self.shape_match(ctx);
+        self.shape_match(ctx, dt);
 
         for point in self.points.iter_mut() {
             point.position += point.velocity * dt;
@@ -124,8 +124,8 @@ impl SoftBody {
         }
     }
 
-    fn shape_match(&mut self, ctx: &mut GraphicsContext) {
-        let (dt, center) = (ctx.delta_time, ctx.center());
+    fn shape_match(&mut self, ctx: &mut GraphicsContext, dt: f32) {
+        let center = ctx.center();
 
         let (mut com, mut staring_com) = (Vector2::zeros(), Vector2::zeros());
         for point in self.points.iter() {
@@ -150,7 +150,7 @@ impl SoftBody {
 
         for point in self.points.iter_mut() {
             let pos = (Rotation2::new(angle) * (point.initial - staring_com)) + com;
-            one_sided_spring(point, pos, 0.0, dt);
+            Spring::DEFAULT.tick_one(point, pos, dt);
 
             Circle::new(4.0)
                 .color(color::GREEN)
