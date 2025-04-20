@@ -116,12 +116,8 @@ impl SoftBody {
         for point in self.points.iter_mut() {
             point.position += point.velocity * dt;
 
-            for (limit, axis, sign) in [
-                (center.y, 1, -1.0),
-                (center.y, 1, 1.0),
-                (center.x, 0, -1.0),
-                (center.x, 0, 1.0),
-            ] {
+            for (axis, sign) in (0..=1).cartesian_product((0..=1).map(|x| (x * 2 - 1) as f32)) {
+                let limit = center[axis];
                 if point.position[axis] * sign > limit {
                     point.position[axis] = limit * sign;
                     point.velocity[axis] = 0.0;

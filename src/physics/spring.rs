@@ -12,7 +12,7 @@ pub struct Spring {
 impl Spring {
     pub const DEFAULT: Self = Self {
         distance: 0.0,
-        strength: 3.0,
+        strength: 10.0,
         damping: 1.0,
     };
 

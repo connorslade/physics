@@ -28,7 +28,7 @@ fn main() {
 
                 let center = ctx.center();
                 for body in soft_bodies.iter_mut() {
-                    body.apply_force(dt, Vector2::y() * -100.0);
+                    body.apply_force(dt, Vector2::y() * -200.0);
                     if ctx.input.mouse_down(MouseButton::Left) {
                         body.apply_force(dt, ctx.input.mouse - center);
                     }
