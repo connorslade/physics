@@ -9,7 +9,10 @@ use engine::{
         circle::Circle,
         line::{Line, LineCap},
     },
-    exports::{nalgebra::Vector2, winit::window::WindowAttributes},
+    exports::{
+        nalgebra::{Rotation2, Vector2},
+        winit::window::WindowAttributes,
+    },
     graphics_context::{Anchor, Drawable},
 };
 use itertools::Itertools;
@@ -124,6 +127,16 @@ fn main() {
                         com /= body.points.len() as f32;
                         staring_com /= body.points.len() as f32;
 
+                        let mut angle = 0.0;
+                        for point in body.points.iter() {
+                            angle += (point.position - com)
+                                .normalize()
+                                .dot(&(point.initial - staring_com).normalize())
+                                .clamp(-1.0, 1.0)
+                                .acos();
+                        }
+                        angle /= body.points.len() as f32;
+
                         Circle::new(8.0)
                             .color(Rgb::hex(0x0000FF))
                             .position(com + center, Anchor::Center)
@@ -131,7 +144,8 @@ fn main() {
                             .draw(ctx);
 
                         for point in body.points.iter_mut() {
-                            let pos = point.initial - staring_com + com;
+                            let pos = (Rotation2::new(angle) * (point.initial - staring_com)) + com;
+
                             distance_constraint(
                                 [
                                     point,
