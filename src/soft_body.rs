@@ -116,10 +116,16 @@ impl SoftBody {
         for point in self.points.iter_mut() {
             point.position += point.velocity * dt;
 
-            let floor = -400.0;
-            if point.position.y < floor {
-                point.position.y = floor;
-                point.velocity.y = 0.0;
+            for (limit, axis, sign) in [
+                (center.y, 1, -1.0),
+                (center.y, 1, 1.0),
+                (center.x, 0, -1.0),
+                (center.x, 0, 1.0),
+            ] {
+                if point.position[axis] * sign > limit {
+                    point.position[axis] = limit * sign;
+                    point.velocity[axis] = 0.0;
+                }
             }
         }
     }
