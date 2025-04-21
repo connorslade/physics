@@ -1,17 +1,12 @@
 use std::f32::consts::TAU;
 
 use engine::{
-    color::Rgb,
-    drawable::shape::{
-        circle::Circle,
-        line::{Line, LineCap},
-    },
     exports::nalgebra::{Rotation2, Vector2},
-    graphics_context::{Anchor, Drawable, GraphicsContext},
+    graphics_context::{Drawable, GraphicsContext},
 };
 use itertools::Itertools;
 
-use crate::{consts::color, misc::repeat_first::IteratorRepeatFirst, physics::spring::Spring};
+use crate::{catmull_rom::CatmullRom, physics::spring::Spring};
 
 pub struct SoftBody {
     pub points: Vec<Point>,
@@ -72,21 +67,19 @@ impl SoftBody {
 
 impl SoftBody {
     pub fn draw(&self, ctx: &mut GraphicsContext, origin: Vector2<f32>) {
-        for (a, b) in self.points.iter().repeat_first().tuple_windows() {
-            Line::new(a.position + origin, b.position + origin)
-                .thickness(8.0)
-                .draw(ctx);
-        }
+        let mut control = self
+            .border
+            .iter()
+            .map(|x| self.points[*x].position + origin)
+            .collect::<Vec<_>>();
 
-        for point in self.points.iter() {
-            Circle::new(12.0)
-                .color(Rgb::repeat(0.0))
-                .position(point.position + origin, Anchor::Center)
-                .draw(ctx);
-            Circle::new(8.0)
-                .position(point.position + origin, Anchor::Center)
-                .draw(ctx);
-        }
+        // ↓ this ugly
+        control.insert(0, control[control.len() - 1]);
+        control.push(control[1]);
+        control.push(control[2]);
+        control.push(control[3]);
+
+        CatmullRom::new(&control).thickness(16.0).draw(ctx);
     }
 }
 
@@ -103,17 +96,12 @@ impl SoftBody {
 
         for constraint in self.constraints.iter() {
             let points = self.points.get_many_mut(constraint.points).unwrap();
-            Line::new(points[0].position + center, points[1].position + center)
-                .thickness(4.0)
-                .color(color::RED)
-                .draw(ctx);
-
             Spring::DEFAULT
                 .with_distance(constraint.distance)
                 .tick(points, dt);
         }
 
-        self.shape_match(ctx, dt);
+        self.shape_match(dt);
 
         for point in self.points.iter_mut() {
             point.position += point.velocity * dt;
@@ -128,9 +116,15 @@ impl SoftBody {
         }
     }
 
-    fn shape_match(&mut self, ctx: &mut GraphicsContext, dt: f32) {
-        let center = ctx.center();
+    fn shape_match(&mut self, dt: f32) {
+        let (com, staring_com, angle) = self.center_of_mass();
+        for point in self.points.iter_mut() {
+            let pos = (Rotation2::new(angle) * (point.initial - staring_com)) + com;
+            Spring::DEFAULT.tick_one(point, pos, dt);
+        }
+    }
 
+    fn center_of_mass(&self) -> (Vector2<f32>, Vector2<f32>, f32) {
         let (mut com, mut staring_com) = (Vector2::zeros(), Vector2::zeros());
         for point in self.points.iter() {
             com += point.position;
@@ -146,15 +140,41 @@ impl SoftBody {
         }
         angle /= self.points.len() as f32;
 
+        (com, staring_com, angle)
+    }
+    #[cfg(feature = "debug")]
+    pub fn debug(&self, ctx: &mut GraphicsContext) {
+        use crate::consts::color;
+        use engine::{
+            drawable::shape::{
+                circle::Circle,
+                line::{Line, LineCap},
+            },
+            graphics_context::Anchor,
+        };
+
+        let center = ctx.center();
+
+        for constraint in self.constraints.iter() {
+            Line::new(
+                self.points[constraint.points[0]].position + center,
+                self.points[constraint.points[1]].position + center,
+            )
+            .thickness(4.0)
+            .color(color::RED)
+            .draw(ctx);
+        }
+
+        let (com, staring_com, angle) = self.center_of_mass();
+
         Circle::new(8.0)
             .color(color::BLUE)
             .position(com + center, Anchor::Center)
             .z_index(1)
             .draw(ctx);
 
-        for point in self.points.iter_mut() {
+        for point in self.points.iter() {
             let pos = (Rotation2::new(angle) * (point.initial - staring_com)) + com;
-            Spring::DEFAULT.tick_one(point, pos, dt);
 
             Circle::new(4.0)
                 .color(color::GREEN)

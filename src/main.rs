@@ -1,6 +1,5 @@
 #![feature(get_many_mut)]
 
-use catmull_rom::CatmullRom;
 use consts::color;
 use engine::{
     application::{Application, ApplicationArgs},
@@ -8,8 +7,8 @@ use engine::{
         nalgebra::Vector2,
         winit::{event::MouseButton, window::WindowAttributes},
     },
-    graphics_context::Drawable,
 };
+use physics::spring::Spring;
 use soft_body::SoftBody;
 
 mod catmull_rom;
@@ -23,7 +22,7 @@ fn main() {
         window_attributes: WindowAttributes::default().with_title("Soft Body Physics"),
         asset_constructor: Box::new(|_constructor| {}),
         resumed: Box::new(|| {
-            let mut soft_bodies = vec![SoftBody::circle()];
+            let mut soft_bodies = [SoftBody::circle()];
 
             Box::new(move |ctx| {
                 let dt = ctx.delta_time * 5.0;
@@ -33,24 +32,18 @@ fn main() {
                 for body in soft_bodies.iter_mut() {
                     body.apply_force(dt, Vector2::y() * -200.0);
                     if ctx.input.mouse_down(MouseButton::Left) {
-                        body.apply_force(dt, ctx.input.mouse - center);
+                        for point in body.points.iter_mut() {
+                            Spring::DEFAULT
+                                .with_strength(4.0)
+                                .with_damping(2.0)
+                                .tick_one(point, ctx.input.mouse - center, dt);
+                        }
                     }
 
                     body.tick(ctx, dt);
-                    //     body.draw(ctx, center);
-
-                    let mut control = body
-                        .border
-                        .iter()
-                        .map(|x| body.points[*x].position + center)
-                        .collect::<Vec<_>>();
-
-                    control.insert(0, control[control.len() - 1]);
-                    control.push(control[1]);
-                    control.push(control[2]);
-                    control.push(control[3]);
-
-                    CatmullRom::new(&control).thickness(16.0).draw(ctx);
+                    body.draw(ctx, center);
+                    #[cfg(feature = "debug")]
+                    body.debug(ctx);
                 }
             })
         }),

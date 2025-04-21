@@ -50,9 +50,9 @@ impl<'a> CatmullRom<'a> {
     }
 }
 
-impl<'a> Drawable for CatmullRom<'a> {
+impl Drawable for CatmullRom<'_> {
     fn draw(self, ctx: &mut GraphicsContext) {
-        let points = catmull_rom_strip(&self.points, self.precision, self.alpha);
+        let points = catmull_rom_strip(self.points, self.precision, self.alpha);
 
         let mut double = Vec::new();
         for i in 0..points.len() - 1 {
