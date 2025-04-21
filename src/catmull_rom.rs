@@ -16,6 +16,7 @@ pub struct CatmullRom<'a> {
     color: Rgb<f32>,
 }
 
+#[allow(unused)]
 impl<'a> CatmullRom<'a> {
     pub fn new(points: &'a [Vector2<f32>]) -> Self {
         Self {

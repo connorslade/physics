@@ -6,7 +6,7 @@ use engine::{
 };
 use itertools::Itertools;
 
-use crate::{catmull_rom::CatmullRom, physics::spring::Spring};
+use crate::{catmull_rom::CatmullRom, repeat_first::IteratorRepeatFirst, spring::Spring};
 
 pub struct SoftBody {
     pub points: Vec<Point>,
@@ -81,9 +81,18 @@ impl SoftBody {
 
         CatmullRom::new(&control).thickness(16.0).draw(ctx);
     }
-}
 
-impl SoftBody {
+    pub fn is_inside(&self, point: Vector2<f32>) -> bool {
+        let lines = self
+            .border
+            .iter()
+            .map(|x| self.points[*x].position)
+            .repeat_first()
+            .tuple_windows()
+            .collect::<Vec<_>>();
+        intersect_lines(point, &lines) & 1 == 1
+    }
+
     pub fn tick(&mut self, ctx: &mut GraphicsContext, dt: f32) {
         let center = ctx.center();
 
@@ -189,4 +198,29 @@ impl SoftBody {
                 .draw(ctx);
         }
     }
+}
+
+/// Checks how many lines are intersected by a horizontal line starting at
+/// `start` and going right forever.
+fn intersect_lines(start: Vector2<f32>, lines: &[(Vector2<f32>, Vector2<f32>)]) -> usize {
+    let mut count = 0;
+
+    // Find the intersection point between the lines y = start.y and y = mx + b
+    // where the second line is defined by the two points in each element of
+    // `lines`.
+    //
+    // m = (b.y - a.y) / (b.x - a.x)
+    // b = a.y - m * a.x
+    //
+    // (start.y - b) / m = x
+    for (a, b) in lines {
+        let slope = (b.y - a.y) / (b.x - a.x);
+        let offset = a.y - slope * a.x;
+        let x = (start.y - offset) / slope;
+
+        let is_inside = x >= start.x && ((x >= a.x && x <= b.x) || (x <= a.x && x >= b.x));
+        count += is_inside as usize;
+    }
+
+    count
 }
