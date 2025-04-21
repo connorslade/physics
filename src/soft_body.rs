@@ -16,6 +16,7 @@ use crate::{consts::color, misc::repeat_first::IteratorRepeatFirst, physics::spr
 pub struct SoftBody {
     pub points: Vec<Point>,
     pub constraints: Vec<Constraint>,
+    pub border: Vec<usize>,
 }
 
 pub struct Point {
@@ -56,6 +57,7 @@ impl SoftBody {
         }
 
         SoftBody {
+            border: (0..points.len()).collect(),
             points,
             constraints,
         }

@@ -733,7 +733,7 @@ dependencies = [
 [[package]]
 name = "engine"
 version = "0.1.0"
-source = "git+https://github.com/connorslade/beam-time#da2518e497aafa66d300f510a602123b3b40bc75"
+source = "git+https://github.com/connorslade/beam-time#243bcd7b8c8e4c045f3b8f01fbf237c7d2a95c1a"
 dependencies = [
  "anyhow",
  "bytemuck",
