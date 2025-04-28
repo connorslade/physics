@@ -1,3 +1,3 @@
 [workspace]
-members = ["electrostatics", "gravity"]
+members = ["electrostatics", "gravity", "soft_body"]
 resolver = "2"
